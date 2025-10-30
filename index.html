@@ -1,78 +1,378 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tasker | Seu Dashboard</title>
+    <title>TasKer - Gerenciamento de Tarefas</title>
     <link rel="stylesheet" href="styles/globals.css" />
 </head>
 <body>
-
-    <div class="navbar">    
-        <div class="header-inner-content">
-            <h1 class="logo">TASKER<span>APP</span></h1>
-            <nav>
-                 <ul>
-                    <li>Meu Dashboard</li>
-                    <li>Projetos</li>
-                    <li>Configurações</li>
+    <!-- Header e Navegação -->
+    <header>
+        <div class="container">
+            <nav class="navbar">
+                <div class="logo">Tas<span>Ker</span></div>
+                <ul class="nav-links">
+                    <li><a href="#" onclick="showSection('home')">Início</a></li>
+                    <li><a href="#" onclick="showSection('features')">Funcionalidades</a></li>
+                    <li><a href="#" onclick="showSection('dashboard')">Dashboard</a></li>
+                    <li><a href="#" onclick="showSection('kanban')">Projetos</a></li>
                 </ul>
+                <div class="auth-buttons">
+                    <button class="btn btn-outline" onclick="showSection('login')">Entrar</button>
+                    <button class="btn btn-primary" onclick="showSection('register')">Cadastrar</button>
+                </div>
             </nav>
-            <div class="nav-icon-container">
-              <span>Sair &#8594;</span>
+        </div>
+    </header>
+
+    <!-- Página Inicial -->
+    <section id="home" class="hero">
+        <div class="container">
+            <h1>Organize suas tarefas, aumente sua produtividade</h1>
+            <p>TasKer é uma plataforma web centralizada e intuitiva para o gerenciamento de tarefas e projetos, ajudando estudantes, freelancers e pequenas equipes a serem mais produtivos.</p>
+            <button class="btn btn-primary" onclick="showSection('register')">Comece Agora</button>
+        </div>
+    </section>
+
+    <!-- Funcionalidades -->
+    <section id="features" class="features" style="display: none;">
+        <div class="container">
+            <div class="section-title">
+                <h2>Como o TasKer pode ajudar você</h2>
+                <p>Nossa plataforma foi desenvolvida para atender às necessidades de diferentes perfis de usuários</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">📚</div>
+                    <h3>Para Estudantes</h3>
+                    <p>Organize cronogramas de estudo, datas de entrega de trabalhos e atividades em grupo. Nunca mais perca um prazo importante.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💼</div>
+                    <h3>Para Freelancers</h3>
+                    <p>Gerencie múltiplos projetos e clientes simultaneamente com um controle claro de entregas e prazos.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">👥</div>
+                    <h3>Para Equipes</h3>
+                    <p>Delegue tarefas, visualize o progresso da equipe e mantenha o alinhamento sobre as responsabilidades.</p>
+                </div>
             </div>
         </div>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="dashboard" class="dashboard" style="display: none;">
+        <div class="container">
+            <div class="dashboard-header">
+                <h2>Meu Dashboard</h2>
+                <div class="user-info">
+                    <div class="user-avatar">MT</div>
+                    <span>Matheus T.</span>
+                </div>
+            </div>
+            <div class="dashboard-grid">
+                <div class="dashboard-card">
+                    <h3>📋 Minhas Tarefas</h3>
+                    <ul class="task-list">
+                        <li class="task-item">
+                            <div class="task-info">
+                                <h4>Finalizar relatório mensal</h4>
+                                <div class="task-meta">
+                                    <span>Projeto: Marketing</span>
+                                    <span>Vence: 15/10</span>
+                                </div>
+                            </div>
+                            <span class="task-priority priority-high">Alta</span>
+                        </li>
+                        <li class="task-item">
+                            <div class="task-info">
+                                <h4>Revisar design do site</h4>
+                                <div class="task-meta">
+                                    <span>Projeto: Site Corporativo</span>
+                                    <span>Vence: 18/10</span>
+                                </div>
+                            </div>
+                            <span class="task-priority priority-medium">Média</span>
+                        </li>
+                        <li class="task-item">
+                            <div class="task-info">
+                                <h4>Preparar apresentação</h4>
+                                <div class="task-meta">
+                                    <span>Projeto: Reunião Trimestral</span>
+                                    <span>Vence: 20/10</span>
+                                </div>
+                            </div>
+                            <span class="task-priority priority-low">Baixa</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="dashboard-card">
+                    <h3>📅 Hoje</h3>
+                    <ul class="task-list">
+                        <li class="task-item">
+                            <div class="task-info">
+                                <h4>Reunião com a equipe</h4>
+                                <div class="task-meta">
+                                    <span>10:00 - 11:00</span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="task-item">
+                            <div class="task-info">
+                                <h4>Enviar proposta para cliente</h4>
+                                <div class="task-meta">
+                                    <span>Até 16:00</span>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                <div class="dashboard-card">
+                    <h3>⚠️ Atrasadas</h3>
+                    <ul class="task-list">
+                        <li class="task-item">
+                            <div class="task-info">
+                                <h4>Atualizar documentação</h4>
+                                <div class="task-meta">
+                                    <span>Venceu: 10/10</span>
+                                </div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quadro Kanban -->
+    <section id="kanban" class="kanban-board" style="display: none;">
+        <div class="container">
+            <div class="board-header">
+                <h2>Projeto: Site Corporativo</h2>
+                <button class="btn btn-primary">Nova Tarefa</button>
+            </div>
+            <div class="board-columns">
+                <div class="column todo">
+                    <div class="column-header">
+                        <h3 class="column-title">A Fazer</h3>
+                        <div class="task-count">3</div>
+                    </div>
+                    <div class="task-card" draggable="true">
+                        <h4>Criar wireframes</h4>
+                        <p>Desenvolver wireframes para as páginas principais</p>
+                        <div class="task-card-footer">
+                            <span>Vence: 20/10</span>
+                            <div class="task-assignee">
+                                <div class="assignee-avatar">MT</div>
+                                <span>Matheus</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="task-card" draggable="true">
+                        <h4>Definir paleta de cores</h4>
+                        <p>Selecionar cores que representem a marca</p>
+                        <div class="task-card-footer">
+                            <span>Vence: 18/10</span>
+                            <div class="task-assignee">
+                                <div class="assignee-avatar">KA</div>
+                                <span>Kauã</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="column progress">
+                    <div class="column-header">
+                        <h3 class="column-title">Em Andamento</h3>
+                        <div class="task-count">2</div>
+                    </div>
+                    <div class="task-card" draggable="true">
+                        <h4>Desenvolver homepage</h4>
+                        <p>Implementar design responsivo da página inicial</p>
+                        <div class="task-card-footer">
+                            <span>Vence: 25/10</span>
+                            <div class="task-assignee">
+                                <div class="assignee-avatar">MT</div>
+                                <span>Matheus</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="column done">
+                    <div class="column-header">
+                        <h3 class="column-title">Concluído</h3>
+                        <div class="task-count">1</div>
+                    </div>
+                    <div class="task-card" draggable="true">
+                        <h4>Pesquisa de concorrência</h4>
+                        <p>Analisar sites de empresas similares</p>
+                        <div class="task-card-footer">
+                            <span>Concluído: 10/10</span>
+                            <div class="task-assignee">
+                                <div class="assignee-avatar">KA</div>
+                                <span>Kauã</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Formulário de Login -->
+    <div id="login" class="auth-form-container" style="display: none;">
+        <form class="auth-form">
+            <h2>Entrar na sua conta</h2>
+            <div class="form-group">
+                <label for="login-email">E-mail</label>
+                <input type="email" id="login-email" required>
+            </div>
+            <div class="form-group">
+                <label for="login-password">Senha</label>
+                <input type="password" id="login-password" required>
+            </div>
+            <button type="submit" class="auth-submit">Entrar</button>
+            <div class="auth-switch">
+                Não tem uma conta? <a href="#" onclick="showSection('register')">Cadastre-se</a>
+            </div>
+        </form>
     </div>
 
-    <main>
-        <div class="page-inner-content">
-            
-            <h2 class="section-title">Meu Dashboard</h2>
-            <div class="subtitle-underline"></div>
+    <!-- Formulário de Cadastro -->
+    <div id="register" class="auth-form-container" style="display: none;">
+        <form class="auth-form">
+            <h2>Criar uma conta</h2>
+            <div class="form-group">
+                <label for="register-name">Nome completo</label>
+                <input type="text" id="register-name" required>
+            </div>
+            <div class="form-group">
+                <label for="register-email">E-mail</label>
+                <input type="email" id="register-email" required>
+            </div>
+            <div class="form-group">
+                <label for="register-password">Senha</label>
+                <input type="password" id="register-password" required>
+            </div>
+            <div class="form-group">
+                <label for="register-confirm">Confirmar senha</label>
+                <input type="password" id="register-confirm" required>
+            </div>
+            <button type="submit" class="auth-submit">Cadastrar</button>
+            <div class="auth-switch">
+                Já tem uma conta? <a href="#" onclick="showSection('login')">Entre aqui</a>
+            </div>
+        </form>
+    </div>
 
-            <div class="kanban-board">
-                
-                <div class="kanban-column">
-                    <h3>A Fazer</h3>
-                    <div class="tasks-container">
-                        <div class="task-card">
-                            <h4>Entregar Atividade 05</h4>
-                            <p>Terminar o escopo do projeto e a apresentação PPT.</p>
-                            <span class="task-tag tag-estudante">Estudante</span>
-                        </div>
-                        <div class="task-card">
-                            <h4>Reunião Cliente X</h4>
-                            <p>Alinhar novas demandas do projeto de e-commerce.</p>
-                            <span class="task-tag tag-freelancer">Freelancer</span>
-                        </div>
-                    </div>
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-column">
+                    <h3>TasKer</h3>
+                    <p>Uma plataforma web para gerenciamento de tarefas e projetos, desenvolvida para aumentar a produtividade de usuários individuais e pequenas equipes.</p>
                 </div>
-
-                <div class="kanban-column">
-                    <h3>Em Andamento</h3>
-                    <div class="tasks-container">
-                        <div class="task-card">
-                            <h4>Codificar template HTML/CSS</h4>
-                            <p>Desenvolver a tela principal do dashboard do Tasker.</p>
-                            <span class="task-tag tag-estudante">Estudante</span>
-                        </div>
-                    </div>
+                <div class="footer-column">
+                    <h3>Links Rápidos</h3>
+                    <ul class="footer-links">
+                        <li><a href="#" onclick="showSection('home')">Início</a></li>
+                        <li><a href="#" onclick="showSection('features')">Funcionalidades</a></li>
+                        <li><a href="#" onclick="showSection('dashboard')">Dashboard</a></li>
+                        <li><a href="#" onclick="showSection('kanban')">Projetos</a></li>
+                    </ul>
                 </div>
-
-                <div class="kanban-column">
-                    <h3>Concluído</h3>
-                    <div class="tasks-container">
-                         <div class="task-card">
-                            <h4>Definir Escopo do Projeto</h4>
-                            <p>Documento de escopo finalizado e aprovado.</p>
-                            <span class="task-tag tag-estudante">Estudante</span>
-                        </div>
-                    </div>
+                <div class="footer-column">
+                    <h3>Contato</h3>
+                    <ul class="footer-links">
+                        <li><a href="mailto:contato@tasker.com">contato@tasker.com</a></li>
+                        <li><a href="#">Política de Privacidade</a></li>
+                        <li><a href="#">Termos de Uso</a></li>
+                    </ul>
                 </div>
-
+            </div>
+            <div class="copyright">
+                <p>&copy; 2025 TasKer. Desenvolvido por Matheus Ribeiro De Sales Tine e Kauã Alves Genovez.</p>
             </div>
         </div>
-    </main>
-    
-    </body>
+    </footer>
+
+    <script>
+        // Função para mostrar apenas a seção selecionada
+        function showSection(sectionId) {
+            // Esconder todas as seções principais
+            document.getElementById('home').style.display = 'none';
+            document.getElementById('features').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById('kanban').style.display = 'none';
+            
+            // Esconder formulários de autenticação
+            document.getElementById('login').style.display = 'none';
+            document.getElementById('register').style.display = 'none';
+            
+            // Mostrar a seção selecionada
+            if (sectionId === 'home') {
+                document.getElementById('home').style.display = 'block';
+            } else if (sectionId === 'features') {
+                document.getElementById('features').style.display = 'block';
+            } else if (sectionId === 'dashboard') {
+                document.getElementById('dashboard').style.display = 'block';
+            } else if (sectionId === 'kanban') {
+                document.getElementById('kanban').style.display = 'block';
+            } else if (sectionId === 'login') {
+                document.getElementById('login').style.display = 'block';
+            } else if (sectionId === 'register') {
+                document.getElementById('register').style.display = 'block';
+            }
+            window.scrollTo(0, 0);
+        }
+
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const taskCards = document.querySelectorAll('.task-card');
+            const columns = document.querySelectorAll('.column');
+            
+            taskCards.forEach(card => {
+                card.addEventListener('dragstart', () => {
+                    card.classList.add('dragging');
+                });
+                
+                card.addEventListener('dragend', () => {
+                    card.classList.remove('dragging');
+                });
+            });
+            
+            columns.forEach(column => {
+                column.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    const afterElement = getDragAfterElement(column, e.clientY);
+                    const draggable = document.querySelector('.dragging');
+                    if (afterElement == null) {
+                        column.appendChild(draggable);
+                    } else {
+                        column.insertBefore(draggable, afterElement);
+                    }
+                });
+            });
+            
+            function getDragAfterElement(container, y) {
+                const draggableElements = [...container.querySelectorAll('.task-card:not(.dragging)')];
+                
+                return draggableElements.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2;
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset: offset, element: child };
+                    } else {
+                        return closest;
+                    }
+                }, { offset: Number.NEGATIVE_INFINITY }).element;
+            }
+        });
+
+        // Mostrar a página inicial por padrão
+        showSection('home');
+    </script>
+</body>
 </html>
