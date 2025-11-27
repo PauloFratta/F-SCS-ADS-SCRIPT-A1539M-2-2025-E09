@@ -2,32 +2,68 @@
 session_start();
 require_once 'config/db.php';
 
-// Inicializa as variáveis para não dar erro se não tiver tarefas
-$todo = [];
-$progress = [];
-$done = [];
+$columns = [];
+$tasks_by_column = [];
 
-// Se o usuário estiver logado, busca as tarefas dele
 if (isset($_SESSION['user_id'])) {
-    try {
-        $user_id = $_SESSION['user_id'];
-        // Busca tarefas ordenadas pela data de criação (mais novas primeiro)
-        $stmt = $pdo->prepare("SELECT * FROM tasks WHERE user_id = :user_id ORDER BY created_at DESC");
-        $stmt->execute(['user_id' => $user_id]);
-        $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $user_id = $_SESSION['user_id'];
 
-        // Separa as tarefas por status
-        foreach ($tasks as $task) {
-            if ($task['status'] == 'todo') {
-                $todo[] = $task;
-            } elseif ($task['status'] == 'progress') {
-                $progress[] = $task;
-            } elseif ($task['status'] == 'done') {
-                $done[] = $task;
+    try {
+        // --- LÓGICA DE MIGRAÇÃO AUTOMÁTICA ---
+        $checkCols = $pdo->prepare("SELECT COUNT(*) FROM board_columns WHERE user_id = ?");
+        $checkCols->execute([$user_id]);
+
+        if ($checkCols->fetchColumn() == 0) {
+            $defaults = [
+                ['title' => 'A Fazer', 'old_status' => 'todo'],
+                ['title' => 'Em Andamento', 'old_status' => 'progress'],
+                ['title' => 'Concluído', 'old_status' => 'done']
+            ];
+
+            foreach ($defaults as $def) {
+                $pdo->prepare("INSERT INTO board_columns (user_id, title) VALUES (?, ?)")
+                    ->execute([$user_id, $def['title']]);
+                $newColId = $pdo->lastInsertId();
+
+                $pdo->prepare("UPDATE tasks SET column_id = ? WHERE status = ? AND user_id = ?")
+                    ->execute([$newColId, $def['old_status'], $user_id]);
             }
         }
+
+        // 1. Busca colunas do banco
+        $stmt = $pdo->prepare("SELECT * FROM board_columns WHERE user_id = :user_id ORDER BY id ASC");
+        $stmt->execute(['user_id' => $user_id]);
+        $raw_columns = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // --- REORDENAÇÃO: Concluído sempre no final ---
+        $columns = [];
+        $done_col = null;
+        foreach ($raw_columns as $col) {
+            if ($col['title'] === 'Concluído') {
+                $done_col = $col;
+            } else {
+                $columns[] = $col;
+            }
+        }
+        if ($done_col) {
+            $columns[] = $done_col;
+        }
+        // ---------------------------------------------
+
+        // 2. Busca tarefas
+        $stmt = $pdo->prepare("SELECT * FROM tasks WHERE user_id = :user_id ORDER BY created_at DESC");
+        $stmt->execute(['user_id' => $user_id]);
+        $all_tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // 3. Organiza tarefas
+        foreach ($all_tasks as $task) {
+            if ($task['column_id']) {
+                $tasks_by_column[$task['column_id']][] = $task;
+            }
+        }
+
     } catch (PDOException $e) {
-        // Em produção, trate o erro silenciosamente ou registre em log
+        // Silêncio em produção
     }
 }
 ?>
@@ -51,10 +87,21 @@ if (isset($_SESSION['user_id'])) {
                     <li><a href="#" onclick="showSection('dashboard')">Dashboard</a></li>
                     <li><a href="#" onclick="showSection('kanban')">Projetos</a></li>
                 </ul>
+
                 <div class="auth-buttons">
-                    <button class="btn btn-outline" onclick="showSection('login')">Entrar</button>
-                    <button class="btn btn-primary" onclick="showSection('register')">Cadastrar</button>
+                    <?php if(isset($_SESSION['user_id'])): ?>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span style="font-weight: 600; color: var(--dark);">
+                                Olá, <?php echo htmlspecialchars(explode(' ', $_SESSION['user_name'])[0]); ?>
+                            </span>
+                            <a href="auth/logout.php" class="btn btn-outline" style="border-color: var(--danger); color: var(--danger);">Sair</a>
+                        </div>
+                    <?php else: ?>
+                        <button class="btn btn-outline" onclick="showSection('login')">Entrar</button>
+                        <button class="btn btn-primary" onclick="showSection('register')">Cadastrar</button>
+                    <?php endif; ?>
                 </div>
+
             </nav>
         </div>
     </header>
@@ -62,8 +109,12 @@ if (isset($_SESSION['user_id'])) {
     <section id="home" class="hero">
         <div class="container">
             <h1>Organize suas tarefas, aumente sua produtividade</h1>
-            <p>TasKer é uma plataforma web centralizada e intuitiva para o gerenciamento de tarefas e projetos, ajudando estudantes, freelancers e pequenas equipes a serem mais produtivos.</p>
-            <button class="btn btn-primary" onclick="showSection('register')">Comece Agora</button>
+            <p>TasKer é uma plataforma web centralizada e intuitiva para o gerenciamento de tarefas e projetos.</p>
+            <?php if(!isset($_SESSION['user_id'])): ?>
+                <button class="btn btn-primary" onclick="showSection('register')">Comece Agora</button>
+            <?php else: ?>
+                <button class="btn btn-primary" onclick="showSection('kanban')">Ir para Projetos</button>
+            <?php endif; ?>
         </div>
     </section>
 
@@ -71,23 +122,23 @@ if (isset($_SESSION['user_id'])) {
         <div class="container">
             <div class="section-title">
                 <h2>Como o TasKer pode ajudar você</h2>
-                <p>Nossa plataforma foi desenvolvida para atender às necessidades de diferentes perfis de usuários</p>
+                <p>Nossa plataforma foi desenvolvida para atender às necessidades de diferentes perfis</p>
             </div>
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">📚</div>
                     <h3>Para Estudantes</h3>
-                    <p>Organize cronogramas de estudo, datas de entrega de trabalhos e atividades em grupo. Nunca mais perca um prazo importante.</p>
+                    <p>Organize cronogramas de estudo, datas de entrega de trabalhos e atividades em grupo.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">💼</div>
                     <h3>Para Freelancers</h3>
-                    <p>Gerencie múltiplos projetos e clientes simultaneamente com um controle claro de entregas e prazos.</p>
+                    <p>Gerencie múltiplos projetos e clientes simultaneamente com controle claro de prazos.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">👥</div>
                     <h3>Para Equipes</h3>
-                    <p>Delegue tarefas, visualize o progresso da equipe e mantenha o alinhamento sobre as responsabilidades.</p>
+                    <p>Delegue tarefas, visualize o progresso da equipe e mantenha o alinhamento.</p>
                 </div>
             </div>
         </div>
@@ -97,93 +148,26 @@ if (isset($_SESSION['user_id'])) {
         <div class="container">
             <div class="dashboard-header">
                 <h2>Meu Dashboard</h2>
-                <div class="user-info">
-                    <div class="user-avatar">
-                        <?php
-                        // Pega as iniciais do nome logado ou mostra 'G' de Guest
-                        echo isset($_SESSION['user_name']) ? strtoupper(substr($_SESSION['user_name'], 0, 2)) : 'G';
-                        ?>
-                    </div>
-                    <span>
-                        <?php
-                        // Mostra o nome logado ou 'Visitante'
-                        echo isset($_SESSION['user_name']) ? htmlspecialchars($_SESSION['user_name']) : 'Visitante';
-                        ?>
-                    </span>
-                    <?php if(isset($_SESSION['user_id'])): ?>
-                        <a href="auth/logout.php" style="margin-left: 10px; color: #e74c3c; text-decoration: none; font-size: 0.9rem;">Sair</a>
-                    <?php endif; ?>
                 </div>
-            </div>
             <div class="dashboard-grid">
                 <div class="dashboard-card">
-                    <h3>📋 Minhas Tarefas</h3>
+                    <h3>📋 Resumo</h3>
                     <ul class="task-list">
                         <li class="task-item">
                             <div class="task-info">
-                                <h4>Finalizar relatório mensal</h4>
-                                <div class="task-meta">
-                                    <span>Projeto: Marketing</span>
-                                    <span>Vence: 15/10</span>
-                                </div>
+                                <h4>Bem-vindo ao novo TasKer!</h4>
+                                <div class="task-meta"><span>Acesse a aba "Projetos" para ver seu quadro Kanban completo.</span></div>
                             </div>
-                            <span class="task-priority priority-high">Alta</span>
-                        </li>
-                        <li class="task-item">
-                            <div class="task-info">
-                                <h4>Revisar design do site</h4>
-                                <div class="task-meta">
-                                    <span>Projeto: Site Corporativo</span>
-                                    <span>Vence: 18/10</span>
-                                </div>
-                            </div>
-                            <span class="task-priority priority-medium">Média</span>
-                        </li>
-                        <li class="task-item">
-                            <div class="task-info">
-                                <h4>Preparar apresentação</h4>
-                                <div class="task-meta">
-                                    <span>Projeto: Reunião Trimestral</span>
-                                    <span>Vence: 20/10</span>
-                                </div>
-                            </div>
-                            <span class="task-priority priority-low">Baixa</span>
                         </li>
                     </ul>
                 </div>
                 <div class="dashboard-card">
                     <h3>📅 Hoje</h3>
-                    <ul class="task-list">
-                        <li class="task-item">
-                            <div class="task-info">
-                                <h4>Reunião com a equipe</h4>
-                                <div class="task-meta">
-                                    <span>10:00 - 11:00</span>
-                                </div>
-                            </div>
-                        </li>
-                        <li class="task-item">
-                            <div class="task-info">
-                                <h4>Enviar proposta para cliente</h4>
-                                <div class="task-meta">
-                                    <span>Até 16:00</span>
-                                </div>
-                            </div>
-                        </li>
-                    </ul>
+                    <div style="text-align: center; color: #999; padding: 20px;">Nenhum evento urgente.</div>
                 </div>
                 <div class="dashboard-card">
-                    <h3>⚠️ Atrasadas</h3>
-                    <ul class="task-list">
-                        <li class="task-item">
-                            <div class="task-info">
-                                <h4>Atualizar documentação</h4>
-                                <div class="task-meta">
-                                    <span>Venceu: 10/10</span>
-                                </div>
-                            </div>
-                        </li>
-                    </ul>
+                    <h3>⚠️ Status</h3>
+                    <div style="text-align: center; color: #999; padding: 20px;">Tudo em dia!</div>
                 </div>
             </div>
         </div>
@@ -193,184 +177,146 @@ if (isset($_SESSION['user_id'])) {
         <div class="container">
             <div class="board-header">
                 <h2>Projeto: Site Corporativo</h2>
-                <button class="btn btn-primary" onclick="openTaskModal()">Nova Tarefa</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-outline" onclick="openColumnModal()">+ Nova Coluna</button>
+                    <button class="btn btn-primary" onclick="openTaskModal()">Nova Tarefa</button>
+                </div>
             </div>
+
             <div class="board-columns">
-
-    <div class="column todo">
-        <div class="column-header">
-            <h3 class="column-title">A Fazer</h3>
-            <div class="task-count"><?php echo count($todo); ?></div>
-        </div>
-
-        <?php if(empty($todo)): ?>
-            <p style="text-align: center; color: #aaa; font-size: 0.9rem; margin-top: 20px;">Nenhuma tarefa aqui</p>
-        <?php else: ?>
-            <?php foreach($todo as $task): ?>
-                <div class="task-card" draggable="true" onclick="editTask(<?php echo $task['id']; ?>)">
-                    <h4><?php echo htmlspecialchars($task['title']); ?></h4>
-                    <p><?php echo htmlspecialchars($task['description']); ?></p>
-                    <div class="task-card-footer">
-                        <span>Vence: <?php echo date('d/m', strtotime($task['deadline'])); ?></span>
+                <?php if (empty($columns)): ?>
+                    <p>Carregando quadro...</p>
+                <?php else: ?>
+                    <?php foreach ($columns as $col): ?>
                         <?php
-                            $priorityColor = '#2ecc71'; // Verde (Low)
-                            if($task['priority'] == 'medium') $priorityColor = '#f39c12'; // Laranja
-                            if($task['priority'] == 'high') $priorityColor = '#e74c3c'; // Vermelho
+                            // Cores das colunas
+                            $extraClass = 'progress'; // Amarelo (Padrão para novas)
+                            if($col['title'] == 'A Fazer') {
+                                $extraClass = 'todo'; // Vermelho
+                            } elseif($col['title'] == 'Concluído') {
+                                $extraClass = 'done'; // Verde
+                            }
                         ?>
-                        <span style="font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; color: white; background-color: <?php echo $priorityColor; ?>">
+
+                        <div class="column <?php echo $extraClass; ?>">
+                            <div class="column-header">
+                                <h3 class="column-title"><?php echo htmlspecialchars($col['title']); ?></h3>
+                                <div class="task-count">
+                                    <?php echo isset($tasks_by_column[$col['id']]) ? count($tasks_by_column[$col['id']]) : 0; ?>
+                                </div>
+                            </div>
+
                             <?php
-                                if($task['priority'] == 'low') echo 'Baixa';
-                                elseif($task['priority'] == 'medium') echo 'Média';
-                                else echo 'Alta';
+                            if (isset($tasks_by_column[$col['id']])) {
+                                foreach ($tasks_by_column[$col['id']] as $task) {
+                                    // Dados para o modal
+                                    $task['current_column_id'] = $col['id'];
+                                    $taskJson = htmlspecialchars(json_encode($task), ENT_QUOTES, "UTF-8");
+
+                                    echo "<div class='task-card' onclick='openEditModal($taskJson)'>";
+
+                                    if ($col['title'] == 'Concluído') {
+                                        // ESTILO: CONCLUÍDO
+                                        echo "<h4 style='text-decoration: line-through; color: #888; margin-bottom: 0;'>" . htmlspecialchars($task['title']) . "</h4>";
+                                        echo "<div class='task-card-footer' style='margin-top: 10px;'>";
+                                        echo "<span>Concluído</span>";
+                                        echo "<span style='color: var(--success); font-weight: bold; font-size: 1.2rem;'>✓</span>";
+                                        echo "</div>";
+                                    } else {
+                                        // ESTILO: PADRÃO
+                                        $priorityColor = '#2ecc71';
+                                        if($task['priority'] == 'medium') $priorityColor = '#f39c12';
+                                        if($task['priority'] == 'high') $priorityColor = '#e74c3c';
+
+                                        echo "<h4>" . htmlspecialchars($task['title']) . "</h4>";
+                                        echo "<p>" . htmlspecialchars($task['description']) . "</p>";
+                                        echo "<div class='task-card-footer'>";
+                                        echo "<span>Vence: " . date('d/m', strtotime($task['deadline'])) . "</span>";
+                                        echo "<span style='font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; color: white; background-color: $priorityColor;'>" . ucfirst($task['priority']) . "</span>";
+                                        echo "</div>";
+                                    }
+
+                                    echo "</div>";
+                                }
+                            }
                             ?>
-                        </span>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        <?php endif; ?>
-    </div>
-
-    <div class="column progress">
-        <div class="column-header">
-            <h3 class="column-title">Em Andamento</h3>
-            <div class="task-count"><?php echo count($progress); ?></div>
-        </div>
-
-        <?php foreach($progress as $task): ?>
-            <div class="task-card" draggable="true" onclick="editTask(<?php echo $task['id']; ?>)">
-                <h4><?php echo htmlspecialchars($task['title']); ?></h4>
-                <p><?php echo htmlspecialchars($task['description']); ?></p>
-                <div class="task-card-footer">
-                    <span>Vence: <?php echo date('d/m', strtotime($task['deadline'])); ?></span>
-                    <span style="font-size: 0.7rem; background-color: #eee; padding: 2px 5px; border-radius: 4px;">Andamento</span>
-                </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
-        <?php endforeach; ?>
-    </div>
-
-    <div class="column done">
-        <div class="column-header">
-            <h3 class="column-title">Concluído</h3>
-            <div class="task-count"><?php echo count($done); ?></div>
-        </div>
-
-        <?php foreach($done as $task): ?>
-            <div class="task-card" draggable="true" onclick="editTask(<?php echo $task['id']; ?>)">
-                <h4 style="text-decoration: line-through; color: #888;"><?php echo htmlspecialchars($task['title']); ?></h4>
-                <div class="task-card-footer">
-                    <span>Concluído</span>
-                    <span style="color: green;">✓</span>
-                </div>
-            </div>
-        <?php endforeach; ?>
-    </div>
-
-</div>
         </div>
     </section>
 
     <div id="login" class="auth-form-container" style="display: none;">
         <form class="auth-form" action="auth/login.php" method="POST">
-            <h2>Entrar na sua conta</h2>
-
-            <?php if(isset($_SESSION['success'])): ?>
-                <div style="background-color: #d4edda; color: #155724; padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center;">
-                    <?php echo $_SESSION['success']; unset($_SESSION['success']); ?>
-                </div>
-            <?php endif; ?>
-
-            <?php if(isset($_SESSION['error']) && isset($_GET['section']) && $_GET['section'] == 'login'): ?>
-                <div style="background-color: #ffdddd; color: #d32f2f; padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center;">
-                    <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
-                </div>
-            <?php endif; ?>
-
-            <div class="form-group">
-                <label for="login-email">E-mail</label>
-                <input type="email" id="login-email" name="email" required>
-            </div>
-            <div class="form-group">
-                <label for="login-password">Senha</label>
-                <input type="password" id="login-password" name="password" required>
-            </div>
-            <button type="submit" class="auth-submit">Entrar</button>
-            <div class="auth-switch">
-                Não tem uma conta? <a href="#" onclick="showSection('register')">Cadastre-se</a>
-            </div>
+            <h2>Entrar</h2>
+            <div class="form-group"><label>E-mail</label><input type="email" name="email" required></div>
+            <div class="form-group"><label>Senha</label><input type="password" name="password" required></div>
+            <button class="auth-submit">Entrar</button>
+            <div class="auth-switch">Não tem conta? <a href="#" onclick="showSection('register')">Cadastre-se</a></div>
         </form>
     </div>
 
     <div id="register" class="auth-form-container" style="display: none;">
         <form class="auth-form" action="auth/register.php" method="POST">
-            <h2>Criar uma conta</h2>
-
-            <?php if(isset($_SESSION['error']) && isset($_GET['section']) && $_GET['section'] == 'register'): ?>
-                <div style="background-color: #ffdddd; color: #d32f2f; padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center;">
-                    <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
-                </div>
-            <?php endif; ?>
-
-            <div class="form-group">
-                <label for="register-name">Nome completo</label>
-                <input type="text" id="register-name" name="name" required>
-            </div>
-            <div class="form-group">
-                <label for="register-email">E-mail</label>
-                <input type="email" id="register-email" name="email" required>
-            </div>
-            <div class="form-group">
-                <label for="register-password">Senha</label>
-                <input type="password" id="register-password" name="password" required>
-            </div>
-            <div class="form-group">
-                <label for="register-confirm">Confirmar senha</label>
-                <input type="password" id="register-confirm" name="confirm_password" required>
-            </div>
-            <button type="submit" class="auth-submit">Cadastrar</button>
-            <div class="auth-switch">
-                Já tem uma conta? <a href="#" onclick="showSection('login')">Entre aqui</a>
-            </div>
+            <h2>Cadastro</h2>
+            <div class="form-group"><label>Nome</label><input type="text" name="name" required></div>
+            <div class="form-group"><label>E-mail</label><input type="email" name="email" required></div>
+            <div class="form-group"><label>Senha</label><input type="password" name="password" required></div>
+            <div class="form-group"><label>Confirmar</label><input type="password" name="confirm_password" required></div>
+            <button class="auth-submit">Cadastrar</button>
+            <div class="auth-switch">Já tem conta? <a href="#" onclick="showSection('login')">Entre</a></div>
         </form>
+    </div>
+
+    <div id="columnModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header"><h2>Nova Coluna</h2><span class="close-modal" onclick="closeColumnModal()">&times;</span></div>
+            <form action="columns/create.php" method="POST">
+                <div class="form-group"><label>Nome da Coluna</label><input type="text" name="title" required placeholder="Ex: Revisão"></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Criar</button>
+            </form>
+        </div>
     </div>
 
     <div id="taskModal" class="modal" style="display: none;">
         <div class="modal-content">
-            <div class="modal-header">
-                <h2>Nova Tarefa</h2>
-                <span class="close-modal" onclick="closeTaskModal()">&times;</span>
-            </div>
+            <div class="modal-header"><h2>Nova Tarefa</h2><span class="close-modal" onclick="closeTaskModal()">&times;</span></div>
             <form action="tasks/create.php" method="POST">
-                <div class="form-group">
-                    <label for="task-title">Título da Tarefa</label>
-                    <input type="text" id="task-title" name="title" required placeholder="Ex: Criar wireframe">
-                </div>
-
-                <div class="form-group">
-                    <label for="task-desc">Descrição</label>
-                    <textarea id="task-desc" name="description" rows="3" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="task-project">Projeto</label>
-                    <input type="text" id="task-project" name="project" placeholder="Ex: Site Institucional">
-                </div>
-
+                <div class="form-group"><label>Título</label><input type="text" name="title" required></div>
+                <div class="form-group"><label>Descrição</label><textarea name="description" rows="3"></textarea></div>
                 <div class="form-group" style="display: flex; gap: 15px;">
-                    <div style="flex: 1;">
-                        <label for="task-deadline">Prazo</label>
-                        <input type="date" id="task-deadline" name="deadline" required>
-                    </div>
-                    <div style="flex: 1;">
-                        <label for="task-priority">Prioridade</label>
-                        <select id="task-priority" name="priority" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
-                            <option value="low">Baixa</option>
-                            <option value="medium" selected>Média</option>
-                            <option value="high">Alta</option>
-                        </select>
-                    </div>
+                    <div style="flex: 1;"><label>Prazo</label><input type="date" name="deadline" required></div>
+                    <div style="flex: 1;"><label>Prioridade</label><select name="priority" style="width:100%"><option value="low">Baixa</option><option value="medium">Média</option><option value="high">Alta</option></select></div>
                 </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Salvar</button>
+            </form>
+        </div>
+    </div>
 
-                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 15px;">Salvar Tarefa</button>
+    <div id="editTaskModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header"><h2>Detalhes</h2><span class="close-modal" onclick="closeEditModal()">&times;</span></div>
+            <form action="tasks/update.php" method="POST">
+                <input type="hidden" id="edit-id" name="id">
+                <div class="form-group"><label>Título</label><input type="text" id="edit-title" name="title" required></div>
+                <div class="form-group"><label>Descrição</label><textarea id="edit-desc" name="description" rows="3"></textarea></div>
+                <div class="form-group" style="display: flex; gap: 15px;">
+                    <div style="flex: 1;"><label>Prazo</label><input type="date" id="edit-deadline" name="deadline" required></div>
+                    <div style="flex: 1;"><label>Prioridade</label><select id="edit-priority" name="priority" style="width:100%"><option value="low">Baixa</option><option value="medium">Média</option><option value="high">Alta</option></select></div>
+                </div>
+                <div class="form-group">
+                    <label>Mover para:</label>
+                    <select id="edit-status" name="status" style="width: 100%; padding: 10px;">
+                        <?php foreach($columns as $col): ?>
+                            <option value="<?php echo $col['id']; ?>"><?php echo htmlspecialchars($col['title']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button type="submit" class="btn btn-primary" style="flex: 1;">Salvar</button>
+                    <a id="delete-btn" href="#" class="btn" style="background-color: #e74c3c; color: white; padding: 10px;">Excluir</a>
+                </div>
             </form>
         </div>
     </div>
@@ -401,112 +347,47 @@ if (isset($_SESSION['user_id'])) {
                 </div>
             </div>
             <div class="copyright">
-                <p>&copy; 2025 TasKer. Desenvolvido por Matheus Ribeiro De Sales Tine e Kauã Alves Genovez.</p>
+                <p>&copy; 2025 TasKer. Todos os direitos reservados.</p>
             </div>
         </div>
     </footer>
 
     <script>
-        // Função para mostrar apenas a seção selecionada
         function showSection(sectionId) {
-            // Esconder todas as seções principais
-            document.getElementById('home').style.display = 'none';
-            document.getElementById('features').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'none';
-            document.getElementById('kanban').style.display = 'none';
-
-            // Esconder formulários de autenticação
-            document.getElementById('login').style.display = 'none';
-            document.getElementById('register').style.display = 'none';
-
-            // Mostrar a seção selecionada
-            if (sectionId === 'home') {
-                document.getElementById('home').style.display = 'block';
-            } else if (sectionId === 'features') {
-                document.getElementById('features').style.display = 'block';
-            } else if (sectionId === 'dashboard') {
-                document.getElementById('dashboard').style.display = 'block';
-            } else if (sectionId === 'kanban') {
-                document.getElementById('kanban').style.display = 'block';
-            } else if (sectionId === 'login') {
-                document.getElementById('login').style.display = 'block';
-            } else if (sectionId === 'register') {
-                document.getElementById('register').style.display = 'block';
-            }
+            ['home','features','dashboard','kanban','login','register'].forEach(id => {
+                document.getElementById(id).style.display = 'none';
+            });
+            document.getElementById(sectionId).style.display = 'block';
             window.scrollTo(0, 0);
         }
 
-        // Funções do Modal (ADICIONADO)
-        function openTaskModal() {
-            document.getElementById('taskModal').style.display = 'flex';
+        function openTaskModal() { document.getElementById('taskModal').style.display = 'flex'; }
+        function closeTaskModal() { document.getElementById('taskModal').style.display = 'none'; }
+
+        function openColumnModal() { document.getElementById('columnModal').style.display = 'flex'; }
+        function closeColumnModal() { document.getElementById('columnModal').style.display = 'none'; }
+
+        function openEditModal(task) {
+            document.getElementById('edit-id').value = task.id;
+            document.getElementById('edit-title').value = task.title;
+            document.getElementById('edit-desc').value = task.description;
+            document.getElementById('edit-deadline').value = task.deadline;
+            document.getElementById('edit-priority').value = task.priority;
+            document.getElementById('edit-status').value = task.column_id || task.current_column_id;
+            document.getElementById('delete-btn').href = 'tasks/delete.php?id=' + task.id;
+            document.getElementById('editTaskModal').style.display = 'flex';
+        }
+        function closeEditModal() { document.getElementById('editTaskModal').style.display = 'none'; }
+
+        window.onclick = function(e) {
+            if(e.target.className === 'modal') e.target.style.display = 'none';
         }
 
-        function closeTaskModal() {
-            document.getElementById('taskModal').style.display = 'none';
-        }
-
-        // Fechar modal se clicar fora dele
-        window.onclick = function(event) {
-            var modal = document.getElementById('taskModal');
-            if (event.target == modal) {
-                modal.style.display = "none";
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            const taskCards = document.querySelectorAll('.task-card');
-            const columns = document.querySelectorAll('.column');
-
-            taskCards.forEach(card => {
-                card.addEventListener('dragstart', () => {
-                    card.classList.add('dragging');
-                });
-
-                card.addEventListener('dragend', () => {
-                    card.classList.remove('dragging');
-                });
-            });
-
-            columns.forEach(column => {
-                column.addEventListener('dragover', e => {
-                    e.preventDefault();
-                    const afterElement = getDragAfterElement(column, e.clientY);
-                    const draggable = document.querySelector('.dragging');
-                    if (afterElement == null) {
-                        column.appendChild(draggable);
-                    } else {
-                        column.insertBefore(draggable, afterElement);
-                    }
-                });
-            });
-
-            function getDragAfterElement(container, y) {
-                const draggableElements = [...container.querySelectorAll('.task-card:not(.dragging)')];
-
-                return draggableElements.reduce((closest, child) => {
-                    const box = child.getBoundingClientRect();
-                    const offset = y - box.top - box.height / 2;
-                    if (offset < 0 && offset > closest.offset) {
-                        return { offset: offset, element: child };
-                    } else {
-                        return closest;
-                    }
-                }, { offset: Number.NEGATIVE_INFINITY }).element;
-            }
-        });
-
-        // Verificar se há uma seção especificada na URL e mantem o login após o reload da página
         <?php if(isset($_GET['section'])): ?>
             showSection('<?php echo htmlspecialchars($_GET['section']); ?>');
         <?php else: ?>
             showSection('home');
         <?php endif; ?>
-
-        function editTask(taskId) {
-    // Na próxima etapa vamos fazer isso abrir o modal com os dados!
-    console.log("Clicou na tarefa ID: " + taskId);
-    alert("Em breve: Editar tarefa " + taskId);
-}
     </script>
 </body>
 </html>
