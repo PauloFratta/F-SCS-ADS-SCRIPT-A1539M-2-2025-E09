@@ -1,0 +1,27 @@
+# --- SEGURANÇA (O mais importante) ---
+# Ignora o arquivo de conexão real com as senhas
+config/db.php
+
+# Ignora arquivos de variáveis de ambiente (se usar no futuro)
+.env
+
+# --- ARQUIVOS DE SISTEMA E IDE ---
+# Arquivos gerados pelo Mac e Windows
+.DS_Store
+Thumbs.db
+
+# Configurações do VS Code e outros editores
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# --- LOGS E ERROS ---
+# Arquivos de log de erro que o PHP gera automaticamente
+error_log
+*.log
+
+# --- DEPENDÊNCIAS (Para o futuro) ---
+# Se um dia usar Composer ou NPM, essas pastas não devem subir
+vendor/
+node_modules/
